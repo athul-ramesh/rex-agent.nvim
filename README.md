@@ -10,11 +10,21 @@ On any machine with this repo available over git:
 
 ```lua
 -- lua/plugins/rex-agent.lua
+local dir = vim.fn.expand("~/projects/rexproject/rex-agent.nvim")
+
+local plugin = {
+  "athul-ramesh/rex-agent.nvim",
+  main = "rex_agent",
+  opts = {},
+}
+
+-- Prefer a local clone when present; otherwise lazy clones from GitHub.
+if vim.fn.isdirectory(dir) == 1 then
+  plugin.dir = dir
+end
+
 return {
-  {
-    "athul-ramesh/rex-agent.nvim",
-    opts = {},
-  },
+  plugin,
   -- Optional: free visual <leader>as from LazyVim ClaudeCodeSend
   {
     "coder/claudecode.nvim",
@@ -26,26 +36,6 @@ return {
 }
 ```
 
-Local checkout (development machine with `~/projects/rexproject/rex-agent.nvim`):
-
-```lua
-local dir = vim.fn.expand("~/projects/rexproject/rex-agent.nvim")
-
-return {
-  {
-    "athul-ramesh/rex-agent.nvim",
-    dir = vim.fn.isdirectory(dir) == 1 and dir or nil,
-    opts = {},
-  },
-  {
-    "coder/claudecode.nvim",
-    optional = true,
-    keys = {
-      { "<leader>as", false, mode = "v" },
-    },
-  },
-}
-```
 
 ## Usage
 
