@@ -120,33 +120,52 @@ local function api_call(binding, method, args)
   return { tag = "failed", message = fail_message(code, stderr, method) }
 end
 
---- Rex `shell=none` uses the server PATH, which often omits Homebrew and ~/.local/bin.
+--- Rex `shell=none` uses the server PATH, which omits Homebrew. Absolute agent
+--- paths still need that PATH for shebangs such as `#!/usr/bin/env node`.
 ---@param argv string[]
----@return string[]|nil
----@return string|nil
-local function resolve_command(argv)
+---@return string[]|nil command
+---@return string[]|nil path_prepend
+---@return string|nil err
+local function resolve_launch(argv)
   local command = {}
   for i, part in ipairs(argv) do
     command[i] = part
   end
   local exe = command[1]
-  if not exe or exe:sub(1, 1) == "/" then
-    return command
+  if exe and exe:sub(1, 1) ~= "/" then
+    local found = vim.fn.exepath(exe)
+    if found == "" then
+      return nil, nil, "Agent executable not found on Neovim PATH: " .. exe
+    end
+    command[1] = found
   end
-  local found = vim.fn.exepath(exe)
-  if found == "" then
-    return nil, "Agent executable not found on Neovim PATH: " .. exe
+
+  local seen = {}
+  local path_prepend = {}
+  for dir in string.gmatch(vim.env.PATH or "", "([^:]+)") do
+    if dir ~= "" and not seen[dir] then
+      seen[dir] = true
+      path_prepend[#path_prepend + 1] = dir
+    end
   end
-  command[1] = found
-  return command
+  return command, path_prepend
 end
 
 ---@param program OpenProgram
 ---@return EnactResult
 local function open_layer(program)
-  local command, err = resolve_command(program.argv)
+  local command, path_prepend, err = resolve_launch(program.argv)
   if not command then
     return { tag = "failed", message = err }
+  end
+  local options = {
+    command = command,
+    cwd = program.cwd,
+    shell = "none",
+    exit = { on_completion = false },
+  }
+  if path_prepend and #path_prepend > 0 then
+    options.path_prepend = path_prepend
   end
   return api_call(program.binding, "session.new_layer", {
     window_id = program.window_id,
@@ -156,12 +175,7 @@ local function open_layer(program)
       block = {
         flavor = "com.superlogical.terminal.shell",
         label = program.label,
-        options = {
-          command = command,
-          cwd = program.cwd,
-          shell = "none",
-          exit = { on_completion = false },
-        },
+        options = options,
       },
     },
   })
