@@ -36,18 +36,55 @@ Press `<leader>as` in normal or visual mode on a saved file buffer.
 - Later presses reuse the existing pane (floating or split), seed context again, and focus it. In floating mode, a tiled agent block is raised into a float first.
 - The seed is `@rel/path#L131 ` for one line and `@rel/path#L131-140 ` for a range, relative to Neovim's cwd. Finish the prompt and press Enter yourself.
 
+With multiple profiles and no `default`, the main map opens an agent picker. Per-profile `keys` or `ask("name")` seed a specific agent without the picker.
+
 ## Options
 
-Pass fields through lazy `opts`, or call setup directly:
+Pass fields through lazy `opts`, or call setup directly.
+
+### Legacy single agent
 
 ```lua
 require("rex_agent").setup({
-  agent = { "pi" }, -- string or argv list
+  agent = { "pi" },
   label = "nvim-agent",
-  keys = "<leader>as", -- or false to skip the default map
+  keys = "<leader>as",
   pane = "floating",
 })
 ```
+
+`agent` may be a string or an argv list. Set `keys` to `false` to skip the main map. `pane` is `"floating"` or `"right"`.
+
+Omitting `profiles` synthesizes one profile whose name is the label. The main map seeds it directly with no picker.
+
+### Multiple profiles
+
+```lua
+require("rex_agent").setup({
+  keys = "<leader>as",
+  pane = "floating",
+  default = "pi",
+  profiles = {
+    { name = "pi", argv = { "pi" }, label = "pi" },
+    {
+      name = "claude",
+      argv = { "claude" },
+      label = "claude-code",
+      keys = "<leader>ac",
+    },
+    { name = "devin", argv = { "devin" }, label = "devin" },
+  },
+})
+```
+
+- `name` is the handle for `ask("name")`. `label` is the Rex block label.
+- `argv` is a non-empty list of strings (command plus args).
+- Per-profile `keys` bind that profile directly and skip the picker on that chord.
+- `default` must name a profile. When set, `ask()` and the main map seed that profile with no picker.
+- One profile and no `default` also skips the picker.
+- `keys = false` on setup omits the main chooser map. Per-profile maps still bind.
+- `pane` applies to every profile in the catalog.
+- Do not pass `profiles` together with `agent` or `label`.
 
 ## Notes
 
