@@ -1,6 +1,6 @@
 # rex-agent.nvim
 
-Open or reuse a Rex floating agent pane from Neovim, start a configurable agent (`pi` by default), and seed the current file plus line range without submitting Enter.
+Open or reuse a Rex agent pane from Neovim, start a configurable agent (`pi` by default), and seed the current file plus line range without submitting Enter.
 
 Requires Neovim running inside [Rex](https://www.superlogical.com/rex) (`REX_SESSION`, `REX_BLOCK`, and `REX_SERVER` in the process environment).
 
@@ -45,7 +45,7 @@ require("rex_agent").setup({
   agent = { "pi" }, -- string or argv list
   label = "nvim-agent",
   keys = "<leader>as", -- or false to skip the default map
-  pane = "floating", -- or "right" for a split beside the anchor block
+  pane = "floating",
 })
 ```
 

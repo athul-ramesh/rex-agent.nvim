@@ -6,7 +6,6 @@ end
 local M = {}
 
 local TRANSITION_FLOATING = {
-  ["blocked:none"] = "refuse",
   ["ready:none"] = "probe",
   ["ready:failed"] = "refuse",
   ["ready:absent"] = "open",
@@ -15,7 +14,6 @@ local TRANSITION_FLOATING = {
 }
 
 local TRANSITION_RIGHT = {
-  ["blocked:none"] = "refuse",
   ["ready:none"] = "probe",
   ["ready:failed"] = "refuse",
   ["ready:absent"] = "open",
@@ -23,7 +21,7 @@ local TRANSITION_RIGHT = {
   ["ready:floating"] = "reuse",
 }
 
----@param pane Pane|nil
+---@param pane Pane
 ---@return table<string, string>
 local function transitions_for(pane)
   if pane == "right" then
@@ -117,6 +115,9 @@ local BUILD = {
 ---@param sight PaneSight|nil
 ---@return PaneProgram
 function M.transition(facts, sight)
+  if facts.tag == "blocked" then
+    return build_refuse(facts, sight)
+  end
   local key = facts.tag .. ":" .. (sight and sight.tag or "none")
   local action = transitions_for(facts.config.pane)[key]
   if not action then

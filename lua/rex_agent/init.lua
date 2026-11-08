@@ -64,13 +64,15 @@ local function bind_keys(lhs)
   keys_bound = true
 end
 
+---@alias Pane "floating"|"right"
+
 ---@param pane string
 ---@return boolean
 local function valid_pane(pane)
   return pane == "floating" or pane == "right"
 end
 
----@param opts? { agent?: string|string[], label?: string, keys?: string|false, pane?: string }
+---@param opts? { agent?: string|string[], label?: string, keys?: string|false, pane?: Pane }
 function M.setup(opts)
   opts = opts or {}
 
