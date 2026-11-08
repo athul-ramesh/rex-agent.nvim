@@ -1,4 +1,4 @@
-local seal, mention = ...
+local seal, mention, ready = ...
 if seal ~= "rex-agent/sealed-v1" then
   error("rex_agent.rex is internal; call require('rex_agent').ask()", 2)
 end
@@ -287,18 +287,30 @@ end
 
 ---@param program OpenProgram|RaiseProgram|ReuseProgram
 ---@return EnactResult
-local function send_and_focus(program)
-  local send_code, _, send_stderr = run(argv_send(program))
-  if send_code ~= 0 then
-    return { tag = "failed", message = fail_message(send_code, send_stderr, "send") }
-  end
-
+local function focus_program(program)
   local focus_code, _, focus_stderr = run(argv_focus(program.binding, program.label))
   if focus_code ~= 0 then
     return { tag = "failed", message = fail_message(focus_code, focus_stderr, "focus") }
   end
-
   return { tag = "ok" }
+end
+
+---@param program OpenProgram|RaiseProgram|ReuseProgram
+---@return fun(): EnactResult
+local function send_fn(program)
+  return function()
+    local send_code, _, send_stderr = run(argv_send(program))
+    if send_code ~= 0 then
+      return { tag = "failed", message = fail_message(send_code, send_stderr, "send") }
+    end
+    return { tag = "ok" }
+  end
+end
+
+---@param program OpenProgram|RaiseProgram|ReuseProgram
+---@return EnactResult
+local function deliver_seed(program)
+  return ready.ensure_seed(program.binding, program.label, program.seed, send_fn(program))
 end
 
 ---@param program OpenProgram|RaiseProgram|ReuseProgram
@@ -314,14 +326,30 @@ function M.enact(program)
     if placed.tag == "failed" then
       return placed
     end
-  elseif program.tag == "raise" then
+    local focused = focus_program(program)
+    if focused.tag == "failed" then
+      return focused
+    end
+    return deliver_seed(program)
+  end
+
+  if program.tag == "raise" then
     local placed = float_block(program.binding, program.block_id)
     if placed.tag == "failed" then
       return placed
     end
+    local focused = focus_program(program)
+    if focused.tag == "failed" then
+      return focused
+    end
+    return deliver_seed(program)
   end
 
-  return send_and_focus(program)
+  local focused = focus_program(program)
+  if focused.tag == "failed" then
+    return focused
+  end
+  return deliver_seed(program)
 end
 
 return M
