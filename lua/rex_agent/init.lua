@@ -17,14 +17,14 @@ local function private_dir()
 end
 
 ---@param name string
----@param deps? unknown
-local function private(name, deps)
+---@param ... unknown
+local function private(name, ...)
   local path = private_dir() .. "/" .. name .. ".lua"
   local loader, err = loadfile(path)
   if not loader then
     error(err)
   end
-  return loader(SEAL, deps)
+  return loader(SEAL, ...)
 end
 
 local profiles = private("profiles")
