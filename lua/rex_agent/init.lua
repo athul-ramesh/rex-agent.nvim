@@ -7,6 +7,7 @@ local config = {
   argv = { "pi" },
   label = "nvim-agent",
   keys = "<leader>as",
+  pane = "floating",
 }
 
 local program = nil
@@ -63,7 +64,13 @@ local function bind_keys(lhs)
   keys_bound = true
 end
 
----@param opts? { agent?: string|string[], label?: string, keys?: string|false }
+---@param pane string
+---@return boolean
+local function valid_pane(pane)
+  return pane == "floating" or pane == "right"
+end
+
+---@param opts? { agent?: string|string[], label?: string, keys?: string|false, pane?: string }
 function M.setup(opts)
   opts = opts or {}
 
@@ -71,6 +78,7 @@ function M.setup(opts)
     argv = config.argv,
     label = config.label,
     keys = config.keys,
+    pane = config.pane,
   }
 
   if opts.agent ~= nil then
@@ -97,6 +105,14 @@ function M.setup(opts)
       vim.notify("rex_agent.setup: keys must be a string or false", vim.log.levels.ERROR)
       return
     end
+  end
+
+  if opts.pane ~= nil then
+    if not valid_pane(opts.pane) then
+      vim.notify('rex_agent.setup: pane must be "floating" or "right"', vim.log.levels.ERROR)
+      return
+    end
+    next_config.pane = opts.pane
   end
 
   if not valid_argv(next_config.argv) then

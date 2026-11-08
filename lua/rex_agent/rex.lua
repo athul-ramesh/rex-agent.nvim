@@ -89,7 +89,7 @@ local function classify(binding, label)
   if hit.layer.kind == "tiled" then
     return { tag = "tiled", block_id = hit.block.block_id }
   end
-  return { tag = "floating" }
+  return { tag = "floating", block_id = hit.block.block_id }
 end
 
 ---@param program ProbeProgram
@@ -152,11 +152,12 @@ local function resolve_launch(argv)
 end
 
 ---@param program OpenProgram
----@return EnactResult
-local function open_layer(program)
+---@return table|nil options
+---@return string|nil err
+local function shell_block_options(program)
   local command, path_prepend, err = resolve_launch(program.argv)
   if not command then
-    return { tag = "failed", message = err }
+    return nil, err
   end
   local options = {
     command = command,
@@ -167,17 +168,58 @@ local function open_layer(program)
   if path_prepend and #path_prepend > 0 then
     options.path_prepend = path_prepend
   end
+  return options
+end
+
+---@param program OpenProgram
+---@return table|nil layout
+---@return string|nil err
+local function agent_shell_layout(program)
+  local options, err = shell_block_options(program)
+  if not options then
+    return nil, err
+  end
+  return {
+    block = {
+      flavor = "com.superlogical.terminal.shell",
+      label = program.label,
+      options = options,
+    },
+  }
+end
+
+---@param program OpenProgram
+---@return EnactResult
+local function open_float(program)
+  local layout, err = agent_shell_layout(program)
+  if not layout then
+    return { tag = "failed", message = err }
+  end
   return api_call(program.binding, "session.new_layer", {
     window_id = program.window_id,
     bounds = FLOAT_BOUNDS,
     focus = false,
-    layout = {
-      block = {
-        flavor = "com.superlogical.terminal.shell",
-        label = program.label,
-        options = options,
-      },
-    },
+    layout = layout,
+  })
+end
+
+---@param program OpenProgram
+---@return EnactResult
+local function open_split(program)
+  local split = program.split
+  if not split then
+    return { tag = "failed", message = "rex open split failed: missing split spec" }
+  end
+  local layout, err = agent_shell_layout(program)
+  if not layout then
+    return { tag = "failed", message = err }
+  end
+  return api_call(program.binding, "session.new_split", {
+    anchor_id = split.anchor_id,
+    direction = split.direction,
+    side = split.side,
+    focus = false,
+    layout = layout,
   })
 end
 
@@ -263,7 +305,12 @@ end
 ---@return EnactResult
 function M.enact(program)
   if program.tag == "open" then
-    local placed = open_layer(program)
+    local placed
+    if program.open_via == "split" then
+      placed = open_split(program)
+    else
+      placed = open_float(program)
+    end
     if placed.tag == "failed" then
       return placed
     end
