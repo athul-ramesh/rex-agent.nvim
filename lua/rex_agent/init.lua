@@ -117,8 +117,9 @@ function M.ask(which)
 end
 
 local mention = private("mention")
+local ready = private("ready", mention)
 context = private("context", mention)
 program = private("program")
-rex = private("rex", mention)
+rex = private("rex", mention, ready)
 
 return M
