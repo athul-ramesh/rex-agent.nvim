@@ -53,7 +53,20 @@ local function run_pipeline(facts)
   end
 end
 
----@param opts? table
+---@class ProfileSpec
+---@field name string
+---@field argv string[]
+---@field label string
+---@field keys? string
+
+---@class SetupOpts
+---@field profiles? ProfileSpec[]
+---@field default? string
+---@field keys? string|false
+---@field agent? string|string[]
+---@field label? string
+
+---@param opts? SetupOpts
 function M.setup(opts)
   local plan, err = profiles.build(opts)
   if not plan then

@@ -41,7 +41,20 @@ local function copy_argv(argv)
   return out
 end
 
----@param opts? table
+---@class ProfileSpec
+---@field name string
+---@field argv string[]
+---@field label string
+---@field keys? string
+
+---@class SetupOpts
+---@field profiles? ProfileSpec[]
+---@field default? string
+---@field keys? string|false
+---@field agent? string|string[]
+---@field label? string
+
+---@param opts? SetupOpts
 ---@return Plan|nil plan
 ---@return string|nil err
 function M.build(opts)

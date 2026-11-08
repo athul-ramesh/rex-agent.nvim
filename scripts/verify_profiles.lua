@@ -1,10 +1,14 @@
--- Headless checks for profiles.build and profiles.resolve (no Rex session).
 local seal = "rex-agent/sealed-v1"
 local src = debug.getinfo(1, "S").source
 if src:sub(1, 1) == "@" then
   src = src:sub(2)
 end
-local root = assert(src:match("(.+)/scripts/"), "run from repo scripts/")
+local root = src:match("(.+)/scripts/") or src:match("^(.*)scripts/")
+if not root or root == "" then
+  root = "."
+elseif root:sub(-1) == "/" then
+  root = root:sub(1, -2)
+end
 local loader = assert(loadfile(root .. "/lua/rex_agent/profiles.lua"))
 local profiles = loader(seal)
 

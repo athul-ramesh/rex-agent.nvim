@@ -46,11 +46,13 @@ Pass fields through lazy `opts`, or call setup directly.
 
 ```lua
 require("rex_agent").setup({
-  agent = { "pi" }, -- string or argv list
+  agent = { "pi" },
   label = "nvim-agent",
-  keys = "<leader>as", -- or false to skip the default map
+  keys = "<leader>as",
 })
 ```
+
+`agent` may be a string or an argv list. Set `keys` to `false` to skip the main map.
 
 Omitting `profiles` synthesizes one profile whose name is the label. The main map seeds it directly with no picker.
 
@@ -59,14 +61,14 @@ Omitting `profiles` synthesizes one profile whose name is the label. The main ma
 ```lua
 require("rex_agent").setup({
   keys = "<leader>as",
-  -- default = "pi", -- optional: main map and ask() skip the picker
+  default = "pi",
   profiles = {
     { name = "pi", argv = { "pi" }, label = "pi" },
     {
       name = "claude",
       argv = { "claude" },
       label = "claude-code",
-      keys = "<leader>ac", -- optional direct map for this profile
+      keys = "<leader>ac",
     },
     { name = "devin", argv = { "devin" }, label = "devin" },
   },
