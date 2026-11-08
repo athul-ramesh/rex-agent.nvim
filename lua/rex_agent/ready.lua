@@ -20,7 +20,7 @@ end
 ---@return string
 function M.coarsen(text)
   local lines = {}
-  for line in text:gmatch("[^\n]*") do
+  for line in (text .. "\n"):gmatch("(.-)\n") do
     lines[#lines + 1] = line:gsub("%s+$", "")
   end
   while #lines > 0 and lines[#lines] == "" do
@@ -97,7 +97,7 @@ end
 ---@param binding RexBinding
 ---@param label string
 ---@param seed Seed
----@param send_fn fun(): nil
+---@param send_fn fun(): EnactResult
 ---@return EnactResult
 function M.ensure_seed(binding, label, seed, send_fn)
   local needle = M.needle_for_search(seed)
@@ -117,7 +117,10 @@ function M.ensure_seed(binding, label, seed, send_fn)
 
     local fp = M.coarsen(capture)
     if fp ~= last_fp and sends < MAX_SENDS then
-      send_fn()
+      local sent = send_fn()
+      if sent.tag == "failed" then
+        return sent
+      end
       sends = sends + 1
       last_fp = fp
     elseif fp ~= last_fp then

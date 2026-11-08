@@ -1,11 +1,3 @@
---[[
-  Headless checks for ready.lua pure helpers.
-
-  Open-then-seed race (measured on Rex): immediate rex send after session.new_layer
-  returns exit 0 while capture still shows the agent ready prompt without the mention
-  token. Success must be judged from capture tail visibility, not send status.
-]]
-
 local seal = "rex-agent/sealed-v1"
 local src = debug.getinfo(1, "S").source
 if src:sub(1, 1) == "@" then

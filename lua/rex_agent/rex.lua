@@ -296,10 +296,14 @@ local function focus_program(program)
 end
 
 ---@param program OpenProgram|RaiseProgram|ReuseProgram
----@return fun(): nil
+---@return fun(): EnactResult
 local function send_fn(program)
   return function()
-    run(argv_send(program))
+    local send_code, _, send_stderr = run(argv_send(program))
+    if send_code ~= 0 then
+      return { tag = "failed", message = fail_message(send_code, send_stderr, "send") }
+    end
+    return { tag = "ok" }
   end
 end
 
