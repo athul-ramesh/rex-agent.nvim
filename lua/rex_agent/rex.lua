@@ -1,21 +1,175 @@
-local seal = ...
+local seal, mention = ...
 if seal ~= "rex-agent/sealed-v1" then
   error("rex_agent.rex is internal; call require('rex_agent').ask()", 2)
 end
 
 local M = {}
 
-local SPLIT_RATIO = "35"
+local FLOAT_BOUNDS = { 0.58, 0.08, 0.38, 0.84 }
 
 ---@param argv string[]
----@return { code: integer|nil, stderr: string }
+---@return integer|nil code
+---@return string stdout
+---@return string stderr
 local function run(argv)
   local obj = vim.system(argv, { text = true })
   local result = obj:wait()
-  return {
-    code = result.code,
-    stderr = result.stderr or "",
-  }
+  return result.code, result.stdout or "", result.stderr or ""
+end
+
+---@param code integer|nil
+---@param stderr string
+---@param what string
+---@return string
+local function fail_message(code, stderr, what)
+  local detail = stderr:match("%S") and stderr:gsub("%s+$", "") or ("exit " .. tostring(code))
+  return "rex " .. what .. " failed: " .. detail
+end
+
+---@param binding RexBinding
+---@return table|nil view
+---@return string|nil err
+local function session_view(binding)
+  local code, stdout, stderr = run({
+    "rex",
+    "--server",
+    binding.server,
+    "api",
+    "call",
+    "-s",
+    binding.session,
+    "session.view",
+  })
+  if code ~= 0 then
+    return nil, fail_message(code, stderr, "session.view")
+  end
+  local ok, decoded = pcall(vim.json.decode, stdout)
+  if not ok or type(decoded) ~= "table" then
+    return nil, "rex session.view failed: invalid JSON"
+  end
+  return decoded
+end
+
+---@param binding RexBinding
+---@param label string
+---@return PaneSight
+local function classify(binding, label)
+  local view, err = session_view(binding)
+  if not view then
+    return { tag = "failed", message = err }
+  end
+
+  local anchor_window_id
+  local hits = {}
+
+  for _, win in ipairs(view.windows or {}) do
+    for _, layer in ipairs(win.layers or {}) do
+      for _, block in ipairs(layer.blocks or {}) do
+        if block.block_id == binding.anchor then
+          anchor_window_id = win.window_id
+        end
+        if block.label == label then
+          hits[#hits + 1] = { layer = layer, block = block }
+        end
+      end
+    end
+  end
+
+  if #hits == 0 then
+    if not anchor_window_id then
+      return { tag = "failed", message = "rex session.view failed: anchor block not in layout" }
+    end
+    return { tag = "absent", window_id = anchor_window_id }
+  end
+  if #hits > 1 then
+    return { tag = "failed", message = "rex focus failed: agent label is ambiguous" }
+  end
+
+  local hit = hits[1]
+  if hit.layer.kind == "tiled" then
+    return { tag = "tiled", block_id = hit.block.block_id }
+  end
+  return { tag = "floating" }
+end
+
+---@param program ProbeProgram
+---@return PaneSight
+function M.probe(program)
+  return classify(program.binding, program.label)
+end
+
+---@param binding RexBinding
+---@param method string
+---@param args table
+---@return EnactResult
+local function api_call(binding, method, args)
+  local code, _, stderr = run({
+    "rex",
+    "--server",
+    binding.server,
+    "api",
+    "call",
+    "-s",
+    binding.session,
+    method,
+    vim.json.encode(args),
+  })
+  if code == 0 then
+    return { tag = "ok" }
+  end
+  return { tag = "failed", message = fail_message(code, stderr, method) }
+end
+
+---@param program OpenProgram
+---@return EnactResult
+local function open_layer(program)
+  return api_call(program.binding, "session.new_layer", {
+    window_id = program.window_id,
+    bounds = FLOAT_BOUNDS,
+    focus = false,
+    layout = {
+      block = {
+        flavor = "com.superlogical.terminal.shell",
+        label = program.label,
+        options = {
+          command = program.argv,
+          cwd = program.cwd,
+          shell = "none",
+          exit = { on_completion = false },
+        },
+      },
+    },
+  })
+end
+
+---@param binding RexBinding
+---@param block_id string
+---@return EnactResult
+local function float_block(binding, block_id)
+  local placed = api_call(binding, "session.float_block", {
+    block_id = block_id,
+    bounds = FLOAT_BOUNDS,
+  })
+  if placed.tag == "ok" then
+    return placed
+  end
+
+  local view = session_view(binding)
+  if view then
+    for _, win in ipairs(view.windows or {}) do
+      for _, layer in ipairs(win.layers or {}) do
+        if layer.kind ~= "tiled" then
+          for _, block in ipairs(layer.blocks or {}) do
+            if block.block_id == block_id then
+              return { tag = "ok" }
+            end
+          end
+        end
+      end
+    end
+  end
+
+  return placed
 end
 
 ---@param binding RexBinding
@@ -33,7 +187,7 @@ local function argv_focus(binding, label)
   }
 end
 
----@param program CreateProgram|ReuseProgram
+---@param program OpenProgram|RaiseProgram|ReuseProgram
 ---@return string[]
 local function argv_send(program)
   return {
@@ -46,85 +200,42 @@ local function argv_send(program)
     "--block",
     program.label,
     "--",
-    program.seed,
+    mention.format(program.seed),
   }
 end
 
----@param program CreateProgram
----@return string[]
-local function argv_split(program)
-  local argv = {
-    "rex",
-    "--server",
-    program.binding.server,
-    "split",
-    "--session",
-    program.binding.session,
-    "--block",
-    program.binding.anchor,
-    "--split",
-    program.split,
-    "--ratio",
-    SPLIT_RATIO,
-    "--label",
-    program.label,
-    "--cwd",
-    program.cwd,
-    "--focus=false",
-    "--",
-  }
-  for _, arg in ipairs(program.argv) do
-    table.insert(argv, arg)
-  end
-  return argv
-end
-
----@param code integer|nil
----@param stderr string
----@param what string
----@return string
-local function fail_message(code, stderr, what)
-  local detail = stderr:match("%S") and stderr:gsub("%s+$", "") or ("exit " .. tostring(code))
-  return "rex " .. what .. " failed: " .. detail
-end
-
----@param program ProbeProgram
----@return PaneSight
-function M.probe(program)
-  local result = run(argv_focus(program.binding, program.label))
-  if result.code == nil then
-    return { tag = "failed", message = fail_message(nil, result.stderr, "focus") }
-  end
-  if result.code == 0 then
-    return { tag = "present" }
-  end
-  if result.code == 3 then
-    return { tag = "absent" }
-  end
-  return { tag = "failed", message = fail_message(result.code, result.stderr, "focus") }
-end
-
----@param program CreateProgram|ReuseProgram
+---@param program OpenProgram|RaiseProgram|ReuseProgram
 ---@return EnactResult
-function M.enact(program)
-  if program.tag == "create" then
-    local split_result = run(argv_split(program))
-    if split_result.code ~= 0 then
-      return { tag = "failed", message = fail_message(split_result.code, split_result.stderr, "split") }
-    end
+local function send_and_focus(program)
+  local send_code, _, send_stderr = run(argv_send(program))
+  if send_code ~= 0 then
+    return { tag = "failed", message = fail_message(send_code, send_stderr, "send") }
   end
 
-  local send_result = run(argv_send(program))
-  if send_result.code ~= 0 then
-    return { tag = "failed", message = fail_message(send_result.code, send_result.stderr, "send") }
-  end
-
-  local focus_result = run(argv_focus(program.binding, program.label))
-  if focus_result.code ~= 0 then
-    return { tag = "failed", message = fail_message(focus_result.code, focus_result.stderr, "focus") }
+  local focus_code, _, focus_stderr = run(argv_focus(program.binding, program.label))
+  if focus_code ~= 0 then
+    return { tag = "failed", message = fail_message(focus_code, focus_stderr, "focus") }
   end
 
   return { tag = "ok" }
+end
+
+---@param program OpenProgram|RaiseProgram|ReuseProgram
+---@return EnactResult
+function M.enact(program)
+  if program.tag == "open" then
+    local placed = open_layer(program)
+    if placed.tag == "failed" then
+      return placed
+    end
+  elseif program.tag == "raise" then
+    local placed = float_block(program.binding, program.block_id)
+    if placed.tag == "failed" then
+      return placed
+    end
+  end
+
+  return send_and_focus(program)
 end
 
 return M

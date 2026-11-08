@@ -22,13 +22,15 @@ local function private_dir()
   return src:match("(.*)/[^/]+$") or "."
 end
 
-local function private(name)
+---@param name string
+---@param deps? unknown
+local function private(name, deps)
   local path = private_dir() .. "/" .. name .. ".lua"
   local loader, err = loadfile(path)
   if not loader then
     error(err)
   end
-  return loader(SEAL)
+  return loader(SEAL, deps)
 end
 
 ---@param argv string[]
@@ -134,8 +136,9 @@ function M.ask()
   end
 end
 
-context = private("context")
+local mention = private("mention")
+context = private("context", mention)
 program = private("program")
-rex = private("rex")
+rex = private("rex", mention)
 
 return M
