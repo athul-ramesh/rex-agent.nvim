@@ -56,14 +56,14 @@ function M.prepare(abs, cwd, span)
   if rel == "" or rel:sub(1, 1) == "/" then
     return nil, "Agent seed file is outside Neovim's working directory"
   end
-  if rel:find("#", 1, true) or rel:find("\n") or rel:find("\r") then
-    if rel:find("#", 1, true) then
-      return nil, "Agent seed path cannot contain '#'"
-    end
-    return nil, "Agent seed file is outside Neovim's working directory"
+  if rel:find("#", 1, true) then
+    return nil, "Agent seed path cannot contain '#'"
+  end
+  if rel:find("\n") or rel:find("\r") then
+    return nil, "Agent seed path cannot contain newlines"
   end
   if bad_segments(rel) then
-    return nil, "Agent seed file is outside Neovim's working directory"
+    return nil, "Agent seed path cannot contain '.' or '..' segments"
   end
 
   return {
