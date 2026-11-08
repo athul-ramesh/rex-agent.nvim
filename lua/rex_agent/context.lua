@@ -12,7 +12,7 @@ local function copy_config(config)
   for i, v in ipairs(config.argv) do
     argv[i] = v
   end
-  return { argv = argv, label = config.label }
+  return { argv = argv, label = config.label, pane = config.pane }
 end
 
 ---@param config AgentConfig
