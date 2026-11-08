@@ -5,19 +5,18 @@ end
 
 local M = {}
 
----@param config AgentConfig
+---@param agent AgentConfig
 ---@return AgentConfig
-local function copy_config(config)
+local function copy_config(agent)
   local argv = {}
-  for i, v in ipairs(config.argv) do
+  for i, v in ipairs(agent.argv) do
     argv[i] = v
   end
-  return { argv = argv, label = config.label }
+  return { argv = argv, label = agent.label }
 end
 
----@param config AgentConfig
----@return AskFacts
-function M.read_editor(config)
+---@return EditorCapture
+function M.capture()
   if vim.bo.buftype ~= "" then
     return { tag = "blocked", reason = "Agent seed needs a saved file buffer" }
   end
@@ -76,8 +75,28 @@ function M.read_editor(config)
       anchor = anchor,
     },
     cwd = cwd,
-    config = copy_config(config),
     seed = seed,
+  }
+end
+
+---@param capture EditorCapture
+---@param agent? AgentConfig
+---@return AskFacts
+function M.assemble(capture, agent)
+  if capture.tag == "blocked" then
+    return { tag = "blocked", reason = capture.reason }
+  end
+
+  if not agent then
+    error("assemble: ready capture requires an agent")
+  end
+
+  return {
+    tag = "ready",
+    binding = capture.binding,
+    cwd = capture.cwd,
+    seed = capture.seed,
+    config = copy_config(agent),
   }
 end
 
