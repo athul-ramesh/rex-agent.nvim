@@ -9,21 +9,15 @@ local TRANSITION = {
   ["blocked:none"] = "refuse",
   ["ready:none"] = "probe",
   ["ready:failed"] = "refuse",
-  ["ready:absent"] = "create",
-  ["ready:present"] = "reuse",
+  ["ready:absent"] = "open",
+  ["ready:tiled"] = "raise",
+  ["ready:floating"] = "reuse",
 }
 
----@param file FileContext
----@return string
-local function seed_text(file)
-  return "@" .. file.path .. " " .. file.path .. ":" .. file.span.first .. "-" .. file.span.last .. " "
-end
-
 ---@param facts AskFacts
----@param seed string|nil
 ---@param sight PaneSight|nil
 ---@return RefuseProgram
-local function build_refuse(facts, _seed, sight)
+local function build_refuse(facts, sight)
   local reason
   if facts.tag == "blocked" then
     reason = facts.reason
@@ -35,7 +29,7 @@ end
 
 ---@param facts AskFacts
 ---@return ProbeProgram
-local function build_probe(facts, _seed, _sight)
+local function build_probe(facts, _sight)
   return {
     tag = "probe",
     binding = facts.binding,
@@ -44,37 +38,49 @@ local function build_probe(facts, _seed, _sight)
 end
 
 ---@param facts AskFacts
----@param seed string
----@return CreateProgram
-local function build_create(facts, seed, _sight)
+---@param sight PaneSight
+---@return OpenProgram
+local function build_open(facts, sight)
   return {
-    tag = "create",
+    tag = "open",
     binding = facts.binding,
     label = facts.config.label,
     cwd = facts.cwd,
     argv = facts.config.argv,
-    split = "right",
-    focus_on_create = false,
-    seed = seed,
+    seed = facts.seed,
+    window_id = sight.window_id,
   }
 end
 
 ---@param facts AskFacts
----@param seed string
+---@param sight PaneSight
+---@return RaiseProgram
+local function build_raise(facts, sight)
+  return {
+    tag = "raise",
+    binding = facts.binding,
+    label = facts.config.label,
+    block_id = sight.block_id,
+    seed = facts.seed,
+  }
+end
+
+---@param facts AskFacts
 ---@return ReuseProgram
-local function build_reuse(facts, seed, _sight)
+local function build_reuse(facts, _sight)
   return {
     tag = "reuse",
     binding = facts.binding,
     label = facts.config.label,
-    seed = seed,
+    seed = facts.seed,
   }
 end
 
 local BUILD = {
   refuse = build_refuse,
   probe = build_probe,
-  create = build_create,
+  open = build_open,
+  raise = build_raise,
   reuse = build_reuse,
 }
 
@@ -87,11 +93,7 @@ function M.transition(facts, sight)
   if not action then
     error("unknown pane transition: " .. key)
   end
-  local seed = nil
-  if action == "create" or action == "reuse" then
-    seed = seed_text(facts.file)
-  end
-  return BUILD[action](facts, seed, sight)
+  return BUILD[action](facts, sight)
 end
 
 return M

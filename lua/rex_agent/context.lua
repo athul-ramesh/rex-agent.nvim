@@ -1,4 +1,4 @@
-local seal = ...
+local seal, mention = ...
 if seal ~= "rex-agent/sealed-v1" then
   error("rex_agent.context is internal; call require('rex_agent').ask()", 2)
 end
@@ -63,6 +63,11 @@ function M.read_editor(config)
     last = line
   end
 
+  local seed, reason = mention.prepare(path, cwd, { first = first, last = last })
+  if not seed then
+    return { tag = "blocked", reason = reason }
+  end
+
   return {
     tag = "ready",
     binding = {
@@ -70,12 +75,9 @@ function M.read_editor(config)
       session = session,
       anchor = anchor,
     },
-    file = {
-      path = path,
-      span = { first = first, last = last },
-    },
     cwd = cwd,
     config = copy_config(config),
+    seed = seed,
   }
 end
 
