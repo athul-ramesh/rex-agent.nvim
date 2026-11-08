@@ -53,6 +53,8 @@ local function run_pipeline(facts)
   end
 end
 
+---@alias Pane "floating"|"right"
+
 ---@class ProfileSpec
 ---@field name string
 ---@field argv string[]
@@ -65,6 +67,7 @@ end
 ---@field keys? string|false
 ---@field agent? string|string[]
 ---@field label? string
+---@field pane? Pane
 
 ---@param opts? SetupOpts
 function M.setup(opts)

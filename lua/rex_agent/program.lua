@@ -5,14 +5,30 @@ end
 
 local M = {}
 
-local TRANSITION = {
-  ["blocked:none"] = "refuse",
+local TRANSITION_FLOATING = {
   ["ready:none"] = "probe",
   ["ready:failed"] = "refuse",
   ["ready:absent"] = "open",
   ["ready:tiled"] = "raise",
   ["ready:floating"] = "reuse",
 }
+
+local TRANSITION_RIGHT = {
+  ["ready:none"] = "probe",
+  ["ready:failed"] = "refuse",
+  ["ready:absent"] = "open",
+  ["ready:tiled"] = "reuse",
+  ["ready:floating"] = "reuse",
+}
+
+---@param pane Pane
+---@return table<string, string>
+local function transitions_for(pane)
+  if pane == "right" then
+    return TRANSITION_RIGHT
+  end
+  return TRANSITION_FLOATING
+end
 
 ---@param facts AskFacts
 ---@param sight PaneSight|nil
@@ -41,7 +57,7 @@ end
 ---@param sight PaneSight
 ---@return OpenProgram
 local function build_open(facts, sight)
-  return {
+  local program = {
     tag = "open",
     binding = facts.binding,
     label = facts.config.label,
@@ -50,6 +66,17 @@ local function build_open(facts, sight)
     seed = facts.seed,
     window_id = sight.window_id,
   }
+  if facts.config.pane == "right" then
+    program.open_via = "split"
+    program.split = {
+      direction = "horizontal",
+      side = "after",
+      anchor_id = facts.binding.anchor,
+    }
+  else
+    program.open_via = "float"
+  end
+  return program
 end
 
 ---@param facts AskFacts
@@ -88,8 +115,11 @@ local BUILD = {
 ---@param sight PaneSight|nil
 ---@return PaneProgram
 function M.transition(facts, sight)
+  if facts.tag == "blocked" then
+    return build_refuse(facts, sight)
+  end
   local key = facts.tag .. ":" .. (sight and sight.tag or "none")
-  local action = TRANSITION[key]
+  local action = transitions_for(facts.config.pane)[key]
   if not action then
     error("unknown pane transition: " .. key)
   end

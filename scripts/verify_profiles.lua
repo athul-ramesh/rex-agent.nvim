@@ -22,6 +22,10 @@ local plan, err = profiles.build({})
 assert(plan, err)
 assert_eq(plan.catalog.profiles[1].agent.label, "nvim-agent", "default label")
 assert_eq(plan.catalog.profiles[1].name, "nvim-agent", "legacy name is label")
+assert_eq(plan.catalog.profiles[1].agent.pane, "floating", "default pane")
+
+plan = assert(profiles.build({ pane = "right" }))
+assert_eq(plan.catalog.profiles[1].agent.pane, "right", "setup pane")
 
 local d = profiles.resolve(plan.catalog, nil)
 assert(d.tag == "chosen", "single profile chosen")

@@ -8,8 +8,15 @@ local M = {}
 local DEFAULT_ARGV = { "pi" }
 local DEFAULT_LABEL = "nvim-agent"
 local DEFAULT_KEYS = "<leader>as"
+local DEFAULT_PANE = "floating"
 
 local NAME_PATTERN = "^[%w_.:-]+$"
+
+---@param pane string
+---@return boolean
+local function valid_pane(pane)
+  return pane == "floating" or pane == "right"
+end
 
 ---@param argv string[]
 ---@return boolean
@@ -41,6 +48,8 @@ local function copy_argv(argv)
   return out
 end
 
+---@alias Pane "floating"|"right"
+
 ---@class ProfileSpec
 ---@field name string
 ---@field argv string[]
@@ -53,6 +62,7 @@ end
 ---@field keys? string|false
 ---@field agent? string|string[]
 ---@field label? string
+---@field pane? Pane
 
 ---@param opts? SetupOpts
 ---@return Plan|nil plan
@@ -72,6 +82,14 @@ function M.build(opts)
     main_keys = opts.keys
   else
     return nil, "rex_agent.setup: keys must be a string or false"
+  end
+
+  local pane = DEFAULT_PANE
+  if opts.pane ~= nil then
+    if not valid_pane(opts.pane) then
+      return nil, 'rex_agent.setup: pane must be "floating" or "right"'
+    end
+    pane = opts.pane
   end
 
   local default_name = opts.default
@@ -199,6 +217,7 @@ function M.build(opts)
       agent = {
         argv = copy_argv(spec.argv),
         label = spec.label,
+        pane = pane,
       },
     }
     profiles[#profiles + 1] = profile

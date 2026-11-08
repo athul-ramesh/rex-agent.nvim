@@ -12,7 +12,7 @@ local function copy_config(agent)
   for i, v in ipairs(agent.argv) do
     argv[i] = v
   end
-  return { argv = argv, label = agent.label }
+  return { argv = argv, label = agent.label, pane = agent.pane }
 end
 
 ---@return EditorCapture
