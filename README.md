@@ -53,3 +53,4 @@ require("rex_agent").setup({
 - Unsaved or non-file buffers are refused.
 - Neovim outside Rex is refused.
 - Files outside Neovim's working directory, paths with `#`, or `.` / `..` segments are refused.
+- The agent executable is resolved with Neovim's `exepath` before create, because Rex `shell=none` does not see Homebrew PATH.

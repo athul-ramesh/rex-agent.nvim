@@ -120,9 +120,34 @@ local function api_call(binding, method, args)
   return { tag = "failed", message = fail_message(code, stderr, method) }
 end
 
+--- Rex `shell=none` uses the server PATH, which often omits Homebrew and ~/.local/bin.
+---@param argv string[]
+---@return string[]|nil
+---@return string|nil
+local function resolve_command(argv)
+  local command = {}
+  for i, part in ipairs(argv) do
+    command[i] = part
+  end
+  local exe = command[1]
+  if not exe or exe:sub(1, 1) == "/" then
+    return command
+  end
+  local found = vim.fn.exepath(exe)
+  if found == "" then
+    return nil, "Agent executable not found on Neovim PATH: " .. exe
+  end
+  command[1] = found
+  return command
+end
+
 ---@param program OpenProgram
 ---@return EnactResult
 local function open_layer(program)
+  local command, err = resolve_command(program.argv)
+  if not command then
+    return { tag = "failed", message = err }
+  end
   return api_call(program.binding, "session.new_layer", {
     window_id = program.window_id,
     bounds = FLOAT_BOUNDS,
@@ -132,7 +157,7 @@ local function open_layer(program)
         flavor = "com.superlogical.terminal.shell",
         label = program.label,
         options = {
-          command = program.argv,
+          command = command,
           cwd = program.cwd,
           shell = "none",
           exit = { on_completion = false },
