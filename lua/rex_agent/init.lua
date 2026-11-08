@@ -2,17 +2,11 @@ local M = {}
 
 local SEAL = "rex-agent/sealed-v1"
 
----@type AgentConfig
-local config = {
-  argv = { "pi" },
-  label = "nvim-agent",
-  keys = "<leader>as",
-}
-
 local program = nil
 local rex = nil
 local context = nil
-local keys_bound = false
+
+local keys_sealed = false
 
 local function private_dir()
   local src = debug.getinfo(1, "S").source
@@ -33,90 +27,13 @@ local function private(name, deps)
   return loader(SEAL, deps)
 end
 
----@param argv string[]
----@return boolean
-local function valid_argv(argv)
-  if type(argv) ~= "table" or #argv == 0 then
-    return false
-  end
-  for _, part in ipairs(argv) do
-    if type(part) ~= "string" or part == "" or part:find("\n") or part:find("\r") then
-      return false
-    end
-  end
-  return true
-end
+local profiles = private("profiles")
 
----@param label string
----@return boolean
-local function valid_label(label)
-  return type(label) == "string" and label:match("^[%w_.:-]+$") ~= nil
-end
+local default_plan = profiles.build({})
+---@type Catalog
+local catalog = default_plan.catalog
 
-local function bind_keys(lhs)
-  if keys_bound or not lhs then
-    return
-  end
-  vim.keymap.set({ "n", "v" }, lhs, function()
-    M.ask()
-  end, { desc = "Seed agent pane", silent = true })
-  keys_bound = true
-end
-
----@param opts? { agent?: string|string[], label?: string, keys?: string|false }
-function M.setup(opts)
-  opts = opts or {}
-
-  local next_config = {
-    argv = config.argv,
-    label = config.label,
-    keys = config.keys,
-  }
-
-  if opts.agent ~= nil then
-    if type(opts.agent) == "string" then
-      next_config.argv = { opts.agent }
-    elseif type(opts.agent) == "table" then
-      next_config.argv = opts.agent
-    else
-      vim.notify("rex_agent.setup: agent must be a string or list of strings", vim.log.levels.ERROR)
-      return
-    end
-  end
-
-  if opts.label ~= nil then
-    next_config.label = opts.label
-  end
-
-  if opts.keys ~= nil then
-    if opts.keys == false then
-      next_config.keys = false
-    elseif type(opts.keys) == "string" and opts.keys ~= "" then
-      next_config.keys = opts.keys
-    else
-      vim.notify("rex_agent.setup: keys must be a string or false", vim.log.levels.ERROR)
-      return
-    end
-  end
-
-  if not valid_argv(next_config.argv) then
-    vim.notify("rex_agent.setup: agent argv must be a non-empty list of strings", vim.log.levels.ERROR)
-    return
-  end
-
-  if not valid_label(next_config.label) then
-    vim.notify("rex_agent.setup: label must match [%w_.:-]+", vim.log.levels.ERROR)
-    return
-  end
-
-  config = next_config
-  if config.keys then
-    bind_keys(config.keys)
-  end
-end
-
-function M.ask()
-  local facts = context.read_editor(config)
+local function run_pipeline(facts)
   local step = program.transition(facts, nil)
   if step.tag == "probe" then
     local sight = rex.probe(step)
@@ -134,6 +51,53 @@ function M.ask()
   if result.tag == "failed" then
     vim.notify(result.message, vim.log.levels.ERROR)
   end
+end
+
+---@param opts? table
+function M.setup(opts)
+  local plan, err = profiles.build(opts)
+  if not plan then
+    vim.notify(err, vim.log.levels.ERROR)
+    return
+  end
+
+  catalog = plan.catalog
+
+  if keys_sealed then
+    return
+  end
+
+  if profiles.bind(plan, function(which)
+    M.ask(which)
+  end) then
+    keys_sealed = true
+  end
+end
+
+---@param which? string
+function M.ask(which)
+  local decision = profiles.resolve(catalog, which)
+  if decision.tag == "reject" then
+    vim.notify(decision.reason, vim.log.levels.ERROR)
+    return
+  end
+
+  local capture = context.capture()
+  if capture.tag == "blocked" then
+    run_pipeline(context.assemble(capture))
+    return
+  end
+
+  local function finish(agent)
+    run_pipeline(context.assemble(capture, agent))
+  end
+
+  if decision.tag == "chosen" then
+    finish(decision.agent)
+    return
+  end
+
+  profiles.present(catalog, finish)
 end
 
 local mention = private("mention")
